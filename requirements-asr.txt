@@ -1,0 +1,3 @@
+# Known direct dependency from the accepted server; NOT a complete environment lock.
+# Preserve the current .venv/PyAV setup. See docs/ADOPT-REPOSITORY.md before rebuilding.
+faster-whisper==1.2.1

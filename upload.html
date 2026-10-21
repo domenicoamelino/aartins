@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Meeting recording</title>
+<style>body{font:15px system-ui,sans-serif;padding:16px;margin:0;color:#17251d;background:#f4f8f5}label{display:block;margin:12px 0}button{padding:10px 18px;background:#216346;color:white;border:0;border-radius:8px}progress{width:100%;height:22px}#detail{white-space:pre-wrap;overflow-wrap:anywhere}.note{color:#516357;font-size:13px}</style></head>
+<body><strong>AARTINS — audio recap</strong>
+<div id="picker"><label>Choose your recording from Files<br><input id="audio" type="file" accept="audio/*,.m4a,.mp3,.wav,.mpeg,.mp4,.webm,.flac"></label><button id="upload">Upload &amp; generate recap</button></div>
+<p id="phase">Waiting for recording</p><progress id="bar"></progress><p id="detail"></p>
+<p class="note">Progress applies to the named stage, not estimated time remaining. After completion, the recap appears in the chat response. If the chat was interrupted, send “status JOB_ID” to retrieve it.</p>
+<script>
+const token="__TOKEN__", bar=document.getElementById('bar'), phase=document.getElementById('phase'), detail=document.getElementById('detail'), picker=document.getElementById('picker');
+let uploading=false;
+function show(stage,text,percent){phase.textContent=stage;detail.textContent=text;if(percent===null||percent===undefined){bar.removeAttribute('value')}else{bar.max=100;bar.value=percent}}
+async function poll(){if(uploading)return;try{const r=await fetch('/meeting-ui/status/'+token,{credentials:'omit'});if(!r.ok)throw new Error('Session unavailable; start a new request');const j=await r.json();picker.hidden=j.state!=='waiting_upload';show(j.state.replaceAll('_',' '),j.detail+'\nJob: '+j.id+(j.error?'\n'+j.error:''),j.percent);if(j.state==='completed'||j.state==='failed')clearInterval(timer)}catch(e){show('Connection unavailable',e.message+'. Processing already queued continues on the server.',null)}}
+document.getElementById('upload').onclick=()=>{const file=document.getElementById('audio').files[0];if(!file){show('Choose a file','Select your meeting recording first.',null);return}if(file.size>512*1024*1024){show('File too large','Maximum upload size is 512 MiB.',null);return}uploading=true;document.getElementById('upload').disabled=true;const xhr=new XMLHttpRequest();xhr.open('POST','/meeting-ui/upload/'+token);xhr.setRequestHeader('Content-Type','application/octet-stream');xhr.setRequestHeader('X-Filename',encodeURIComponent(file.name));xhr.upload.onprogress=e=>show('Uploading to AARTINS',file.name,e.lengthComputable?100*e.loaded/e.total:null);xhr.onload=()=>{uploading=false;document.getElementById('upload').disabled=false;if(xhr.status===202){picker.hidden=true;poll()}else{let message=xhr.responseText;try{message=JSON.parse(message).error}catch(e){}show('Upload failed',message,null)}};xhr.onerror=()=>{uploading=false;document.getElementById('upload').disabled=false;show('Upload connection lost','Retry while this session is waiting for a file.',null)};xhr.send(file)};
+const timer=setInterval(poll,3000);poll();
+function reportHeight(){parent.postMessage({type:'iframe:height',height:document.documentElement.scrollHeight},'*')}
+window.addEventListener('load',reportHeight);new ResizeObserver(reportHeight).observe(document.body);
+</script></body></html>

@@ -1,0 +1,8 @@
+{
+  "segments": [
+    {"start": 0, "end": 5, "text": "We bespreken vandaag de planning voor het testproject."},
+    {"start": 5, "end": 12, "text": "Alex says: I will send the draft on Friday. The group says: agreed."},
+    {"start": 12, "end": 18, "text": "Maybe we could move the launch, but we have not decided."},
+    {"start": 18, "end": 24, "text": "Wie controleert de planning? Dat is nog niet toegewezen."}
+  ]
+}

@@ -5,7 +5,7 @@
 Python 3.10+ is the code target. Run tests from repository root:
 
 ```bash
-python -m unittest discover -s tests -v
+python tools/check_all.py
 ```
 
 The suite covers reporter extraction/schema/provenance, writing/resume/context bounds, worker HTTP/SQLite flow with simulated Whisper/Ollama, and Pipe control flow/recap-only responses using stub dependencies. It is not an installed Open WebUI/browser test. Every model/prompt change also needs a short real recording test. Use synthetic fixtures for committed tests; keep actual meeting recordings out of Git.
@@ -31,5 +31,5 @@ The initial PoC snapshot commit uses a local automation identity, not the user's
 - Long-running Pipe request may be interrupted by client/server behavior; status reconnect remains necessary.
 - Evidence refs/quotes and kind checks are structural safeguards, not a full semantic verifier.
 - Old report messages are immutable chat history; replacing a Function does not rewrite them.
-- No automatic deploy/publish from Git. No remote repository or cloud CI is configured.
+- No automatic deploy/publish from Git. The public GitHub repository exists; cloud CI/deployment automation is not introduced by this revision.
 - Full-server provisioning and dependency/image lock await verified server inventory.

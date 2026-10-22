@@ -20,6 +20,7 @@ from urllib.parse import unquote, urlsplit
 import uuid
 
 import meeting_report as report
+import meeting_knowledge as knowledge
 
 ROOT = Path(os.environ.get("MEETING_ROOT", str(Path.home() / "ai-platform/meetings"))).expanduser()
 DB = ROOT / "jobs.sqlite3"
@@ -143,11 +144,17 @@ def process(job):
                                            "--language", job.get("report_language") or os.environ.get("REPORT_LANGUAGE", "English"),
                                            "--timeout", os.environ.get("REPORT_TIMEOUT", "1200"),
                                            "--url", os.environ.get("REPORT_OLLAMA_URL", "http://127.0.0.1:11434")])
+        metadata_path = folder / "meeting_metadata.json"
+        if metadata_path.exists():
+            metadata = knowledge.validate_metadata(json.loads(metadata_path.read_text(encoding="utf-8")))
+            args.title = metadata["meeting_title"]
+            args.meeting_date = metadata["meeting_date"]
         archive = report.run(args)
         for name in ("report.md", "transcript.md", "source.json", "findings.json"):
             # Publish copies atomically; all model audit files remain in analysis/.
             report.atomic(folder / name, (archive / name).read_text(encoding="utf-8"))
-        update(jid, state="completed", detail="Report and full transcript saved", percent=100)
+        knowledge.export(folder)
+        update(jid, state="completed", detail="Report, full transcript and knowledge saved", percent=100)
     except Exception as e:
         old_log(f"Job {jid} failed: {e}")
         update(jid, state="failed", detail="Processing failed; source and partial results retained", percent=None, error=str(e)[:1500])
@@ -187,7 +194,7 @@ class Handler(BaseHTTPRequestHandler):
             # The iframe has an opaque origin. Its scoped bearer capability grants access.
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Filename")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Filename, X-Meeting-Metadata")
         self.end_headers()
         self.wfile.write(blob)
 
@@ -282,6 +289,10 @@ class Handler(BaseHTTPRequestHandler):
             filename = Path(unquote(self.headers.get("X-Filename", "audio.m4a")).replace("\\", "/")).name[:180]
             if Path(filename).suffix.lower() not in EXTENSIONS:
                 raise ValueError("Unsupported audio filename extension")
+            raw_metadata = self.headers.get("X-Meeting-Metadata", "")
+            if not raw_metadata or len(raw_metadata) > 6000:
+                raise ValueError("Meeting title and date are required (metadata header <=6000 characters)")
+            metadata = knowledge.validate_metadata(json.loads(unquote(raw_metadata)))
             size = self.length(MAX_BYTES)
             with connect() as c:
                 cur = c.execute("UPDATE jobs SET state='uploading',detail='Receiving recording',updated=? WHERE id=? AND state='waiting_upload'", (time.time(), job["id"]))
@@ -306,7 +317,8 @@ class Handler(BaseHTTPRequestHandler):
                     os.fsync(f.fileno())
                 os.replace(partial, folder / ("audio" + Path(filename).suffix.lower()))
                 report.save(folder / "audio_source.json", {"filename": filename, "sha256": digest.hexdigest(), "bytes": size,
-                                                           "received_at": dt.datetime.now().astimezone().isoformat(), "meeting_date": None})
+                                                           "received_at": dt.datetime.now().astimezone().isoformat(), **metadata})
+                report.save(folder / "meeting_metadata.json", metadata)
                 update(job["id"], state="queued", detail="Queued for the local audio worker", filename=filename, folder=str(folder), percent=None)
             except Exception:
                 update(job["id"], state="waiting_upload", detail="Upload interrupted; choose the file again")

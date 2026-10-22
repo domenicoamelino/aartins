@@ -1,0 +1,13 @@
+[Unit]
+Description=Incremental meeting knowledge ingestion into Open WebUI
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/ai-platform/ingestion
+ExecStart=/usr/bin/python3 %h/ai-platform/ingestion/ingest_meetings.py sync --apply
+Nice=10
+IOSchedulingClass=idle
+UMask=0077
+TimeoutStartSec=2h
+SuccessExitStatus=75

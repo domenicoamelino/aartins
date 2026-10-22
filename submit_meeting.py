@@ -13,6 +13,9 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("audio", nargs="?", type=Path)
     p.add_argument("--status", metavar="JOB_ID")
+    p.add_argument("--title", help="Required meeting title for a new upload")
+    p.add_argument("--meeting-date", help="Required actual meeting date, YYYY-MM-DD")
+    p.add_argument("--participant", action="append", default=[], help="Participant name; repeat as needed")
     a = p.parse_args()
     key = os.environ.get("MEETING_API_KEY", "")
     if len(key) < 32:
@@ -42,12 +45,16 @@ def main():
             return
         if not a.audio or not a.audio.is_file():
             p.error("Provide an existing audio file, or --status JOB_ID")
+        from meeting_knowledge import validate_metadata
+        metadata = validate_metadata({"meeting_title": a.title, "meeting_date": a.meeting_date,
+                                      "participants": a.participant})
         result = request("POST", "/v1/sessions", json.dumps({"owner": "local-cli", "request_key": uuid.uuid4().hex}), {"Content-Type": "application/json"})
         print("Job ID:", result["id"], flush=True)
         print("Uploading recording to the local worker...", flush=True)
         with a.audio.open("rb") as f:
             result = request("POST", "/meeting-ui/upload/" + result["upload_token"], f,
-                             {"Content-Length": str(a.audio.stat().st_size), "X-Filename": quote(a.audio.name), "Content-Type": "application/octet-stream"})
+                             {"Content-Length": str(a.audio.stat().st_size), "X-Filename": quote(a.audio.name), "Content-Type": "application/octet-stream",
+                              "X-Meeting-Metadata": quote(json.dumps(metadata, ensure_ascii=False), safe="")})
         print("State:", result["state"])
         print("Upload accepted. You can close this terminal; processing continues.")
     except (OSError, RuntimeError, ValueError) as e:

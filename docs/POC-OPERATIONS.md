@@ -127,3 +127,22 @@ Restore into a separate directory first and verify contents. Stop the relevant s
 | Full transcript appears in chat | Replace the installed Pipe with 0.1.1; old messages do not change retroactively |
 | Long wait | Check job detail and logs, CPU/RAM/model activity; do not infer failure from elapsed time alone |
 | Disk fills | Stop accepting uploads, back up, inspect archives; no automatic retention/deletion is implemented |
+
+## MVP 3.1 additions (22 October)
+
+Retain the paths above. Knowledge is exported into each completed processed folder.
+Ingestion uses `~/ai-platform/ingestion`; optional monitoring uses
+`~/ai-platform/ingestion-monitor`. Neither lives in the audio-worker directory.
+
+```bash
+systemctl --user status meeting-ingestion.timer --no-pager
+systemctl --user list-timers meeting-ingestion.timer --all
+journalctl --user -u meeting-ingestion.service -n 60 --no-pager
+systemctl --user status meeting-monitor.service --no-pager
+python3 ~/ai-platform/ingestion-monitor/run_monitor.py status
+```
+
+The last two commands require installed monitoring. The existing timer is 03:00
+Europe/Amsterdam; weekends still index, routine Telegram summaries skip weekends.
+See [stabilization](MVP31-STABILIZATION.md) and preserve private configuration,
+keys, state, snapshots, SQLite history and source archives in backups.

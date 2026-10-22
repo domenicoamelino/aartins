@@ -1,21 +1,21 @@
 # Operations for the reference installation
 
-These commands assume [INSTALL.md](INSTALL.md): checkout `~/aartins`, service `aartins`, proxy container `aartins-proxy`, private data `~/aartins-data`. Original MINISFORUM users have different names/paths; use [PoC operations](POC-OPERATIONS.md) instead.
+These commands assume [INSTALL.md](INSTALL.md): checkout `~/smartinis`, service `smartinis`, proxy container `smartinis-proxy`, private data `~/smartinis-data`. Original MINISFORUM users have different names/paths; use [PoC operations](POC-OPERATIONS.md) instead.
 
 ## Restart and reboot
 
 Wait for active jobs/uploads to finish before restarting. Restart recovery requeues interrupted jobs from archived audio, rather than continuing at the exact segment/chunk.
 
 ```bash
-sudo systemctl restart aartins
+sudo systemctl restart smartinis
 curl --retry 5 --retry-connrefused --retry-delay 1 --fail http://127.0.0.1:8765/health
-journalctl -u aartins -n 60 --no-pager
+journalctl -u smartinis -n 60 --no-pager
 ```
 
 After a server reboot, reconnect using your normal address and check:
 
 ```bash
-systemctl is-active aartins
+systemctl is-active smartinis
 sudo docker ps --format 'table {{.Names}}	{{.Status}}'
 curl --fail http://127.0.0.1:8765/health
 curl --fail http://127.0.0.1:8088/meeting-proxy-health
@@ -28,11 +28,11 @@ The worker is enabled by the install guide and proxy uses `unless-stopped`. WebU
 ## Recover a failed writer
 
 ```bash
-cd ~/aartins
+cd ~/smartinis
 set -a
 . ./worker.env
 set +a
-"$HOME/aartins/.venv/bin/python" recover_meeting_job.py YOUR_JOB_ID
+"$HOME/smartinis/.venv/bin/python" recover_meeting_job.py YOUR_JOB_ID
 ```
 
 Run once while other processing is idle, keeping SSH connected. It requires a failed job with transcript/analysis files and reuses checked results without repeating transcription. The original job becomes completed only after publication. For an interrupted chat use `status JOB_ID`; do not resubmit merely to retrieve a result. Failed uploads/ASR require separate diagnosis and a new submission after the cause is fixed.
@@ -42,12 +42,12 @@ Run once while other processing is idle, keeping SSH connected. It requires a fa
 Wait for processing/uploads to finish, stop the worker and take a coherent backup of the entire private data directory, including SQLite sidecars. For the generic path:
 
 ```bash
-mkdir -p ~/aartins-backups
-chmod 700 ~/aartins-backups
-sudo systemctl stop aartins
+mkdir -p ~/smartinis-backups
+chmod 700 ~/smartinis-backups
+sudo systemctl stop smartinis
 recap_backup="recap-$(date +%Y%m%d-%H%M%S).tar.gz"
-(umask 077; tar -czf "$HOME/aartins-backups/$recap_backup" -C "$HOME" aartins-data)
-sudo systemctl start aartins
+(umask 077; tar -czf "$HOME/smartinis-backups/$recap_backup" -C "$HOME" smartinis-data)
+sudo systemctl start smartinis
 ```
 
 If backup fails, restart the service and fix the problem; do not trust an incomplete file. Copy verified backups to separate protected storage. Also privately back up worker.env, service/proxy settings, image references and the WebUI data volume (accounts/chats/functions/Valves). Locate its real mounts rather than guessing names. Git holds source, not runtime data or secrets.
@@ -64,3 +64,14 @@ Test restores into a separate scratch directory. Stop services before restoring 
 - Disk growth: no automatic retention is implemented; plan protected backups and deliberate cleanup.
 
 When troubleshooting, don't share raw request/response logs, capability URLs or meeting text publicly. Use redacted synthetic reproductions.
+
+## Knowledge ingestion and monitoring
+
+Use [ingestion operations](../ingestion/README.md) and [monitoring operations](../monitoring/README.md)
+for their independent user services, locks, state backup and rollback. The audio
+worker uses a system service; ingestion/monitoring use `systemctl --user` under
+the account that installed them. Restarting the audio service does not run ingestion.
+The dashboard only records wrapper runs; direct legacy importer calls bypass it.
+Before shutdown, wait for audio and ingestion work. After startup inspect both
+system and user services and verify the timer; a completed recap alone does not
+prove successful indexing or Telegram delivery.

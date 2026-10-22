@@ -1,14 +1,33 @@
-# AARTINS repository finalization
+# SMARTINI’s naming and identity — 22 October 2026
 
-- Adopt AARTINS as the project, Pipe and upload-card name.
-- Standardize new-install paths, service and proxy names on `aartins`; retain original PoC operations separately.
+- Adopt SMARTINI’s: Smart Memo Artificial Recording Transcription Initiative Notes Intelligence software.
+- Add the martini-glass, waveform and connected-memory logo to the README and brand guide.
+- Update documentation, Pipe title, upload card, monitor labels and Telegram prefixes.
+- Use `smartinis` for new-install examples while retaining existing deployment paths and the current GitHub URL.
+- Preserve all earlier source history and baseline tags; no live migration or remote repository rename.
+
+# MVP 3.1 stabilization — 22 October 2026
+
+- Merge metadata validation and deterministic evidence-linked knowledge export into the portable language-aware worker.
+- Export knowledge during writing recovery; update the CLI for required title/date and optional participants.
+- Add ingestion 1.0.1 for Open WebUI 0.12.3 and optional nightly units.
+- Add private run-history page and weekday Telegram monitoring with authentication, backups and rollback.
+- Replace knowledge proposal with implemented setup/usage, limitations and troubleshooting.
+- Record accepted live outcomes separately from pending scheduled/monitoring acceptance.
+- Preserve GitHub history and baseline tags; restore ignore and line-ending rules.
+- No automatic server deployment or dependency/model/image upgrades.
+
+# SMARTINI’s repository finalization
+
+- Adopt SMARTINI’s as the project, Pipe and upload-card name.
+- Standardize new-install paths, service and proxy names on `smartinis`; retain original PoC operations separately.
 - Add MIT license, contribution guide, project scope and GitHub publishing instructions.
 - Remove the commercial positioning proposal; this is a reusable open-source project.
 - Preserve original working code through `poc-baseline`; no live server changes or remote publication.
 
 # Reusable integration revision
 
-- Reframe as AARTINS, with Open WebUI/Ollama prerequisites and optional AMD PoC reference.
+- Reframe as SMARTINI’s, with Open WebUI/Ollama prerequisites and optional AMD PoC reference.
 - Add complete Linux reference installation, generic runbook and hardware planning guidance.
 - Pipe 0.2.0: per-user spoken language, mixed-language mode and recap language through User Valves.
 - Worker: additive job-schema migration and persistent validated language settings. Legacy rows preserve previous mixed-language behavior.

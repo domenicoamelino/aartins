@@ -2,7 +2,7 @@
 
 ## Choose settings inside Open WebUI
 
-Select **AARTINS**, then open its per-user Function settings (**User Valves**). Depending on WebUI version, these are under the function/user settings control or the selected model's settings. Admin **Valves** hold connectivity/secrets; **User Valves** hold the following language preferences. See the [official Valves documentation](https://docs.openwebui.com/features/extensibility/plugin/development/valves/) if the controls are not visible in your version.
+Select **SMARTINI’s**, then open its per-user Function settings (**User Valves**). Depending on WebUI version, these are under the function/user settings control or the selected model's settings. Admin **Valves** hold connectivity/secrets; **User Valves** hold the following language preferences. See the [official Valves documentation](https://docs.openwebui.com/features/extensibility/plugin/development/valves/) if the controls are not visible in your version.
 
 | Setting | Meaning | Default |
 |---|---|---|
@@ -25,9 +25,9 @@ Preferences apply to each **new** generated request and are saved with its job. 
 ## Upload and retrieve
 
 1. Sign into your existing HTTPS Open WebUI address from a computer or phone.
-2. Configure language preferences, select **AARTINS** and start a saved chat, not a temporary one.
+2. Configure language preferences, select **SMARTINI’s** and start a saved chat, not a temporary one.
 3. Send `Generate a meeting recap`.
-4. Choose a recording in the embedded upload card and press **Upload & generate recap**.
+4. Enter the required meeting title and actual meeting date, optionally add participants, then choose a recording and press **Upload & generate recap**. The date is not inferred from upload time; participants do not establish speaker identities.
 5. Stay connected until upload acceptance. Once queued, the durable worker continues if the browser disconnects.
 6. Read operation-specific progress. A high transcription percentage does not mean the report is nearly finished.
 7. Read the recap in chat; full transcript/evidence remain archived.
@@ -47,12 +47,13 @@ This does not resubmit audio. Stop generating/closing chat does not cancel an ac
 For the generic installation:
 
 ```bash
-cd ~/aartins
+cd ~/smartinis
 set -a
 . ./worker.env
 set +a
-"$HOME/aartins/.venv/bin/python" submit_meeting.py /absolute/path/to/recording.m4a
-"$HOME/aartins/.venv/bin/python" submit_meeting.py --status YOUR_JOB_ID
+"$HOME/smartinis/.venv/bin/python" submit_meeting.py /absolute/path/to/recording.m4a \
+  --title "Planning meeting" --meeting-date 2026-10-22 --participant "Alex"
+"$HOME/smartinis/.venv/bin/python" submit_meeting.py --status YOUR_JOB_ID
 ```
 
 CLI submissions currently use auto speech detection, mixed mode off and the worker's REPORT_LANGUAGE fallback. User Valves apply to the WebUI Pipe, not the CLI. Completed status prints the archive path. For custom programmatic language settings use the authenticated session API fields documented in the configuration guide.

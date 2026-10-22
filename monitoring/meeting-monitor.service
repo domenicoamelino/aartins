@@ -1,0 +1,15 @@
+[Unit]
+Description=Private UM870 ingestion run-history dashboard
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/ai-platform/ingestion-monitor
+ExecStart=/usr/bin/python3 %h/ai-platform/ingestion-monitor/run_monitor.py serve
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

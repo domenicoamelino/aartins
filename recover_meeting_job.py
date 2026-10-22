@@ -36,7 +36,8 @@ def main():
     archive = w.report.run(w.report.parser().parse_args(command))
     for name in ('report.md', 'transcript.md', 'source.json', 'findings.json'):
         w.report.atomic(folder / name, (archive / name).read_text(encoding='utf-8'))
-    w.update(job['id'], state='completed', detail='Report recovered and full transcript saved', percent=100, error=None)
+    w.knowledge.export(folder)
+    w.update(job['id'], state='completed', detail='Report recovered; transcript and knowledge saved', percent=100, error=None)
     print('Recovered report:', folder / 'report.md')
 
 

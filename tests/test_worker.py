@@ -88,7 +88,8 @@ class Tests(unittest.TestCase):
         return obj
 
     def upload(self, s):
-        return self.request("/meeting-ui/upload/" + s["upload_token"], b"mock audio bytes", {"X-Filename": "test.m4a", "Content-Type": "application/octet-stream"})
+        return self.request("/meeting-ui/upload/" + s["upload_token"], b"mock audio bytes", {"X-Filename": "test.m4a", "Content-Type": "application/octet-stream",
+            "X-Meeting-Metadata": __import__("urllib.parse", fromlist=["quote"]).quote(json.dumps({"meeting_title": "Planning", "meeting_date": "2026-10-22", "participants": ["Alice"]}))})
 
     def test_auth_ownership_and_idempotency(self):
         s = self.session()
@@ -104,7 +105,8 @@ class Tests(unittest.TestCase):
         job = w.get_job(s["id"])
         self.assertEqual(job["state"], "queued")
         self.assertEqual((Path(job["folder"]) / "audio.m4a").read_bytes(), b"mock audio bytes")
-        self.assertIsNone(json.loads((Path(job["folder"]) / "audio_source.json").read_text())["meeting_date"])
+        self.assertEqual(json.loads((Path(job["folder"]) / "audio_source.json").read_text())["meeting_date"], "2026-10-22")
+        self.assertEqual(json.loads((Path(job["folder"]) / "meeting_metadata.json").read_text())["participants"], ["Alice"])
 
     def test_restart_recovery(self):
         s = self.session()
@@ -127,6 +129,8 @@ class Tests(unittest.TestCase):
         folder = Path(w.get_job(s['id'])['folder'])
         meta = json.loads(next((folder / 'analysis').glob('*/manifest.json')).read_text())
         self.assertEqual(meta['language'], 'French')
+        self.assertEqual(meta['title'], 'Planning')
+        self.assertEqual(meta['meeting_date'], '2026-10-22')
         w.recover()
         self.assertEqual(w.get_job(s['id'])['report_language'], 'French')
 
@@ -166,6 +170,8 @@ class Tests(unittest.TestCase):
         job = w.get_job(s["id"])
         self.assertEqual(job["state"], "completed", job["error"])
         folder = Path(job["folder"])
+        self.assertTrue((folder / "knowledge.md").is_file())
+        self.assertIn("Planning", (folder / "knowledge.md").read_text(encoding="utf-8"))
         self.assertIn("Source references and review notes", (folder / "report.md").read_text(encoding="utf-8"))
         self.assertIn("S000001", (folder / "transcript.md").read_text(encoding="utf-8"))
         code, result = self.request("/v1/sessions/" + s["id"], headers={"Authorization": "Bearer " + "x" * 40, "X-Owner-Id": "alice"})

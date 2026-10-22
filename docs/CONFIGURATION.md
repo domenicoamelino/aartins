@@ -1,4 +1,4 @@
-> The examples below retain original PoC paths. New installs use `~/aartins` and service `aartins`; follow [INSTALL.md](INSTALL.md). Per-user languages now override worker fallbacks for new WebUI requests.
+> The examples below retain original PoC paths. New installs use `~/smartinis` and service `smartinis`; follow [INSTALL.md](INSTALL.md). Per-user languages now override worker fallbacks for new WebUI requests.
 
 ## Language API and UI
 
@@ -66,3 +66,21 @@ Run tests, install the updated reporter into the worker folder, restart when idl
 ## Change upload size or ports
 
 Upload size appears in three places: `MEETING_MAX_BYTES`, `upload.html` and Nginx `client_max_body_size`. Keep them consistent. A worker-port change also needs Pipe WORKER_URL and Nginx upload upstream changes. A proxy-port change needs Tailscale Serve. Keep all upstream worker/model listeners on loopback. Validate proxy config with `nginx -t` inside the existing container before reload. Capture working files first and keep an immediate rollback copy.
+
+## Meeting metadata and knowledge (MVP 3.1)
+
+Raw-audio uploads now require `X-Meeting-Metadata`, containing percent-encoded
+UTF-8 JSON: `meeting_title` (1–150 characters), `meeting_date` (valid YYYY-MM-DD),
+and optional `participants` (up to 20 names, 1–100 characters each). The server
+validates before consuming the upload session. See `meeting_knowledge.validate_metadata`.
+The supplied card/CLI encode it; arbitrary clients need updating.
+
+Metadata is stored in `meeting_metadata.json` and `audio_source.json`. Existing
+hash/bytes/filename/received-at provenance remains. Newly generated report metadata
+uses supplied title/date; legacy jobs without metadata stay explicitly unavailable.
+No extra model calls are made by the exporter. Knowledge includes every finding's
+kind, topic, text, evidence, owner, deadline, interpretation and verification warnings.
+
+Ingestion configuration/API keys and monitor configuration/Telegram credentials
+are separate private files outside the checkout. See [knowledge](KNOWLEDGE-BASE.md)
+and [monitoring](../monitoring/README.md); neither setting belongs in Pipe Valves.

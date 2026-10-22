@@ -1,7 +1,7 @@
 """
-title: AARTINS
+title: SMARTINI’s
 author: Local AI project
-version: 0.2.0
+version: 0.2.1
 description: Upload meeting audio inside chat, run durable local jobs, return cited Markdown.
 """
 import asyncio

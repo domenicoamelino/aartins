@@ -1,0 +1,10 @@
+[Unit]
+Description=Nightly meeting knowledge ingestion at 03:00 Amsterdam time
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 Europe/Amsterdam
+Persistent=false
+Unit=meeting-ingestion.service
+
+[Install]
+WantedBy=timers.target

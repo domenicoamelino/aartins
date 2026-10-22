@@ -4,7 +4,7 @@
 
 ## Request lifecycle
 
-1. The user selects **AARTINS** in a saved Open WebUI chat.
+1. The user selects **SMARTINI’s** in a saved Open WebUI chat.
 2. The Python Pipe creates a session using the worker API key and authenticated Open WebUI user ID. The chat/message IDs form the idempotency key.
 3. The Pipe emits an embedded upload card from the public HTTPS origin. The phone uploads an existing recording using the card, not the normal attachment/microphone path.
 4. Nginx routes `/meeting-ui/` to the loopback worker. All other paths go to Open WebUI. The HTTPS entry point is supplied by the deployment; Tailscale is one optional tested choice.
@@ -43,7 +43,7 @@ flowchart TD
 | faster-whisper | Speech recognition with configurable language detection | It does not establish speaker identities |
 | Ollama | Local model API and inference runtime | It is not the report policy/validator |
 | Qwen | Evidence extraction and natural-language writing | Its output is not automatically factual |
-| Reporter | Evidence references, chunking, validation, prose, Markdown | It does not provide a knowledge search index yet |
+| Reporter | Evidence references, chunking, validation, prose, Markdown | It exports knowledge without model calls; Open WebUI owns the optional search index |
 
 ## Context and quality
 
@@ -64,3 +64,15 @@ SQLite retains state across SSH/browser disconnection. A server/service restart 
 Worker API and model API are loopback services. Nginx exposes only the browser card route, not the worker's `/v1/` API. Host-network Open WebUI can call loopback directly. The worker key belongs only in private server settings and admin Function Valves, never in the HTML card. Card URLs contain scoped bearer capabilities and should not be shared or logged. Transcript text is untrusted model input, not executable instructions.
 
 The current worker API returns report and transcript to the Pipe on completion; the Pipe suppresses the transcript from its returned chat text. This is a presentation choice, not a change to backend archival storage or its authenticated payload.
+
+## Knowledge and run monitoring extension
+
+`findings.json` → deterministic `meeting_knowledge.py` → `knowledge.md`
+→ `ingestion/ingest_meetings.py` → Open WebUI file processing/embeddings
+→ chosen Knowledge collection → retrieved excerpts → the selected chat model.
+
+The optional user-service wrapper records each ingestion result in its own SQLite
+history, then attempts a weekday Telegram summary. Its dashboard is read-only,
+password protected and bound to loopback; Tailscale Serve exposes a separate
+private HTTPS listener. It does not change the audio worker or chat proxy.
+See [knowledge](KNOWLEDGE-BASE.md) and [monitoring](../monitoring/README.md).

@@ -1,0 +1,24 @@
+Meeting ingestion 1.0.1
+Target API: Open WebUI 0.12.3, official version-tagged source reviewed.
+Python used locally: 3.12.14 on Windows.
+
+27 offline tests passed. These include:
+- Full HTTP sync against a local fake Open WebUI server, multipart parsing,
+  processing-status polling, collection attachment, repeat sync without re-upload.
+- API authentication, collection pagination, redirect refusal, URL checks.
+- Exact manual-upload adoption, normalized UTF-8/BOM/line endings.
+- Distinct names for distinct meetings, source preservation, legacy opt-in.
+- Unchanged-file skips, completed-job checks, busy-queue deferral, process locking.
+- Upload/attach response loss, poll timeout, attachment and detachment failures,
+  resume without repeated uploads, externally deleted pending-file recovery.
+- Version replacement order, retained old uploads, rollback and dry-run behavior.
+- Local state/destination checks and duplicate-copy refusal.
+
+No real model or embedding calls were used for these tests.
+No live Open WebUI account, UM870 filesystem, API key or deployment was accessed.
+Linux Bash execution and systemd validation were not available locally.
+Install guide includes bash -n and systemd-analyze verification on the UM870.
+The first sync --apply --limit 1 is the required live integration smoke test.
+Nightly scheduling is supplied but NOT enabled automatically.
+
+Git records the complete source files in this consolidated repository.

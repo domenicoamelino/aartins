@@ -1,4 +1,4 @@
-# Contributing to AARTINS
+# Contributing to SMARTINI’s
 
 Improvements to setup, local model compatibility, language support, report quality and reliability are welcome. Read the [architecture](docs/ARCHITECTURE.md) and [development notes](docs/DEVELOPMENT.md) first.
 

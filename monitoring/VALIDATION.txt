@@ -1,0 +1,23 @@
+Validation — 22 October 2026
+
+26 automated tests passed: python -m unittest -v test_monitor test_telegram.
+Tests cover run persistence, current-result recording, failure/deferred/interrupted
+states, weekday notification rules, uncertain delivery, token privacy, private
+Tailscale listener ownership, authentication, session expiry/invalidation, CSRF,
+secure cookies, rate limiting, and API data filtering.
+
+Local browser check: dashboard sign-in and rendering verified with artificial
+sample runs. The included preview image contains sample data, not UM870 history.
+Responsive CSS is included; physical mobile-device testing remains to be done.
+
+Telegram network calls were mocked in automated tests. No real bot message was
+sent from this workspace. Run test-telegram on the UM870 after configuring it.
+
+Linux Bash/systemd and Tailscale Serve activation were not executed on this
+Windows workstation. START-HERE includes Bash syntax checks; activation performs
+systemd verification and listener ownership checks on the target machine.
+
+The existing ingestion program is loaded without replacement. Supported versions
+are 1.0.0 and 1.0.1; activation checks its interface before changing the service.
+No UM870 service has been remotely installed or changed by this package build.
+No credentials, real run database, or preview configuration are included.

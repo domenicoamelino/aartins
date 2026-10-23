@@ -52,3 +52,22 @@ last-run.json
 *.lock
 snapshots/
 serve-backups/
+
+# Review/diarization runtime and travel checkpoints
+meeting-notifications.json
+diarization.json
+diarization-pending-*.json
+omitted_claims.json
+category_corrections.json
+background_review.json
+review.json
+approval.json
+revision.json
+recap-candidates/
+move-checkpoints/
+hf-cache/
+results/
+*.rttm
+*.npz
+*.bin
+*.safetensors

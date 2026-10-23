@@ -2,25 +2,46 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Meeting recording</title>
 <style>body{font:15px system-ui,sans-serif;padding:16px;margin:0;color:#17251d;background:#f4f8f5}label{display:block;margin:12px 0}button{padding:10px 18px;background:#216346;color:white;border:0;border-radius:8px}progress{width:100%;height:22px}#detail{white-space:pre-wrap;overflow-wrap:anywhere}.note{color:#516357;font-size:13px}input{box-sizing:border-box;max-width:100%;font:inherit;padding:10px}input[type=text],input[type=date]{width:100%}button{min-height:44px}button:disabled{opacity:.6}</style></head>
-<body><strong>SMARTINI’s — audio recap</strong>
+<body><strong>Local meeting recap</strong>
 <div id="picker">
 <label>Meeting title *<br><input id="meeting-title" type="text" maxlength="150" required placeholder="Meeting title"></label>
 <label>Meeting date *<br><input id="meeting-date" type="date" required></label>
 <label>Participants (optional, comma-separated)<br><input id="participants" type="text" maxlength="500" placeholder="Names as provided; no speaker identification"></label>
+<fieldset><legend>Languages spoken in the recording * (select 1–3)</legend>
+<label><input type="checkbox" name="expected-language" value="en"> English</label>
+<label><input type="checkbox" name="expected-language" value="nl"> Dutch</label>
+<label><input type="checkbox" name="expected-language" value="it"> Italian</label>
+<p class="note">Select every language you expect. Multiple selections enable language switching; automatic detection can also recognize other languages.</p>
+</fieldset>
+<label>Vocabulary hints (optional: names, acronyms, technical terms)<br><input id="transcription-vocabulary" type="text" maxlength="1000" placeholder="e.g. Jan Willem, Thermo Fisher, PUF"></label>
+<p class="note">Hints may help recognition; they do not identify voices or guarantee correct words.</p>
+<fieldset><legend>Optional speaker separation</legend>
+<label><input id="diarization-enabled" type="checkbox" checked> Identify different speakers (anonymous labels)</label>
+<label>Known speaker count (optional; leave blank for automatic)<br><input id="speaker-count" type="number" min="1" max="20" step="1"></label>
+<p class="note">Adds processing time: about 41 extra minutes per audio hour in our short CPU test. Labels estimate who spoke when; they do not identify participant names. If separation fails, your recap continues without labels.</p>
+</fieldset>
 <label>Choose your recording from Files<br><input id="audio" type="file" accept="audio/*,.m4a,.mp3,.wav,.mpeg,.mp4,.webm,.flac"></label><button id="upload">Upload &amp; generate recap</button></div>
 <p id="phase">Waiting for recording</p><progress id="bar"></progress><p id="detail"></p>
-<p class="note">Progress applies to the named stage, not estimated time remaining. After completion, the recap appears in the chat response. If the chat was interrupted, send “status JOB_ID” to retrieve it.</p>
+<p class="note">Progress applies to the named stage, not estimated time remaining. After completion, review the draft recap in chat. Only an explicitly approved revision is eligible for nightly knowledge ingestion. If the chat was interrupted, send “status JOB_ID” to retrieve it.</p>
 <script>
 const token="__TOKEN__", bar=document.getElementById('bar'), phase=document.getElementById('phase'), detail=document.getElementById('detail'), picker=document.getElementById('picker');
 let uploading=false;
+const diarizationToggle=document.getElementById('diarization-enabled'),speakerCount=document.getElementById('speaker-count');
+diarizationToggle.onchange=()=>{speakerCount.disabled=!diarizationToggle.checked;if(!diarizationToggle.checked)speakerCount.value='';reportHeight()};
 function show(stage,text,percent){phase.textContent=stage;detail.textContent=text;if(percent===null||percent===undefined){bar.removeAttribute('value')}else{bar.max=100;bar.value=percent}}
 async function poll(){if(uploading)return;try{const r=await fetch('/meeting-ui/status/'+token,{credentials:'omit'});if(!r.ok)throw new Error('Session unavailable; start a new request');const j=await r.json();picker.hidden=j.state!=='waiting_upload';show(j.state.replaceAll('_',' '),j.detail+'\nJob: '+j.id+(j.error?'\n'+j.error:''),j.percent);if(j.state==='completed'||j.state==='failed')clearInterval(timer)}catch(e){show('Connection unavailable',e.message+'. Processing already queued continues on the server.',null)}}
 document.getElementById('upload').onclick=()=>{const title=document.getElementById('meeting-title'),date=document.getElementById('meeting-date'),people=document.getElementById('participants');
-const metadata={meeting_title:title.value.trim(),meeting_date:date.value,participants:people.value.split(',').map(s=>s.trim()).filter(Boolean)};
+const metadata={meeting_title:title.value.trim(),meeting_date:date.value,expected_languages:Array.from(document.querySelectorAll('input[name="expected-language"]:checked'),el=>el.value),participants:people.value.split(',').map(s=>s.trim()).filter(Boolean)};
 if(!metadata.meeting_title||!title.reportValidity()||!date.reportValidity()){show('Meeting details required','Enter a meeting title and date.',null);return}
+if(metadata.expected_languages.length<1||metadata.expected_languages.length>3){show('Languages required','Select English, Dutch, Italian, or a combination of them.',null);return}
+metadata.transcription_vocabulary=document.getElementById('transcription-vocabulary').value.trim();
+metadata.diarization_enabled=diarizationToggle.checked;
+metadata.speaker_count=metadata.diarization_enabled&&speakerCount.value!==''?Number(speakerCount.value):null;
+if(metadata.diarization_enabled&&(!speakerCount.reportValidity()||(metadata.speaker_count!==null&&(!Number.isInteger(metadata.speaker_count)||metadata.speaker_count<1||metadata.speaker_count>20)))){show('Check speaker count','Leave it blank or enter a whole number from 1 to 20.',null);return}
+if(Number(metadata.meeting_date.slice(0,4))<1900||Number(metadata.meeting_date.slice(0,4))>new Date().getFullYear()+1){show('Check meeting date','Enter a full four-digit meeting year.',null);return}
 const encoded=encodeURIComponent(JSON.stringify(metadata));
 if(metadata.participants.length>20||metadata.participants.some(s=>s.length>100)||encoded.length>6000){show('Check participants','Use up to 20 names, each up to 100 characters; shorten details if needed.',null);return}
-const file=document.getElementById('audio').files[0];if(!file){show('Choose a file','Select your meeting recording first.',null);return}if(file.size>512*1024*1024){show('File too large','Maximum upload size is 512 MiB.',null);return}uploading=true;document.getElementById('upload').disabled=true;const xhr=new XMLHttpRequest();xhr.open('POST','/meeting-ui/upload/'+token);xhr.setRequestHeader('Content-Type','application/octet-stream');xhr.setRequestHeader('X-Meeting-Metadata',encoded);xhr.setRequestHeader('X-Filename',encodeURIComponent(file.name));xhr.upload.onprogress=e=>show('Uploading to SMARTINI’s',file.name,e.lengthComputable?100*e.loaded/e.total:null);xhr.onload=()=>{uploading=false;document.getElementById('upload').disabled=false;if(xhr.status===202){picker.hidden=true;poll()}else{let message=xhr.responseText;try{message=JSON.parse(message).error}catch(e){}show('Upload failed',message,null)}};xhr.onerror=()=>{uploading=false;document.getElementById('upload').disabled=false;show('Upload connection lost','Retry while this session is waiting for a file.',null)};xhr.send(file)};
+const file=document.getElementById('audio').files[0];if(!file){show('Choose a file','Select your meeting recording first.',null);return}if(file.size>512*1024*1024){show('File too large','Maximum upload size is 512 MiB.',null);return}uploading=true;document.getElementById('upload').disabled=true;const xhr=new XMLHttpRequest();xhr.open('POST','/meeting-ui/upload/'+token);xhr.setRequestHeader('Content-Type','application/octet-stream');xhr.setRequestHeader('X-Meeting-Metadata',encoded);xhr.setRequestHeader('X-Filename',encodeURIComponent(file.name));xhr.upload.onprogress=e=>show('Uploading to MINISFORUM',file.name,e.lengthComputable?100*e.loaded/e.total:null);xhr.onload=()=>{uploading=false;document.getElementById('upload').disabled=false;if(xhr.status===202){picker.hidden=true;poll()}else{let message=xhr.responseText;try{message=JSON.parse(message).error}catch(e){}show('Upload failed',message,null)}};xhr.onerror=()=>{uploading=false;document.getElementById('upload').disabled=false;show('Upload connection lost','Retry while this session is waiting for a file.',null)};xhr.send(file)};
 const timer=setInterval(poll,3000);poll();
 function reportHeight(){parent.postMessage({type:'iframe:height',height:document.documentElement.scrollHeight},'*')}
 window.addEventListener('load',reportHeight);new ResizeObserver(reportHeight).observe(document.body);

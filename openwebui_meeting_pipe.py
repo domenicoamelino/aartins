@@ -1,7 +1,7 @@
 """
 title: SMARTINI’s
 author: Local AI project
-version: 0.2.1
+version: 0.3.0
 description: Upload meeting audio inside chat, run durable local jobs, return cited Markdown.
 """
 import asyncio
@@ -66,6 +66,101 @@ class Pipe:
                         return " ".join(x.get("text", "") for x in content if isinstance(x, dict))
                     return str(content)
             return ""
+        text = last_user().strip()
+        def help_text():
+            return ("Use `review JOB_ID`, `transcript JOB_ID`, or `changes JOB_ID`.\n\n"
+                    "Edit with `feedback JOB_ID REVISION` or `replace JOB_ID REVISION`, followed by a new line and your text.\n\n"
+                    "Map voices with `speakers JOB_ID REVISION`, followed by lines such as `SPEAKER_00 = Name`.\n\n"
+                    "Correct a turn with `correct JOB_ID REVISION S000012` plus a new line and corrected text, "
+                    "or `speaker JOB_ID REVISION S000012 = Name`.\n\n"
+                    "Correct details with `date JOB_ID REVISION YYYY-MM-DD`, or `title JOB_ID REVISION` / `participants JOB_ID REVISION` followed by the corrected values on a new line.\n\n"
+                    "If a revision failed, `retry JOB_ID REVISION` retries the saved feedback. Only `approve JOB_ID REVISION` approves that exact current revision for nightly indexing.")
+        def reviewed_text(value):
+            revision = value['revision']
+            state = 'Revising in background' if value.get('pending') else value.get('review_state', 'draft')
+            metadata = value.get('metadata', {})
+            details = ('Title: ' + html.escape(str(metadata.get('meeting_title') or 'Not provided'))
+                       + '\nDate: ' + html.escape(str(metadata.get('meeting_date') or 'Not provided'))
+                       + '\nParticipants: ' + html.escape(', '.join(metadata.get('participants', [])) or 'Not provided')
+                       + '\nConfirmed voice names: ' + html.escape(str(value.get('speaker_mapping', {}))))
+            content = value.get('report', '').strip()
+            content = re.sub(r'\[([^\]]+)\]\(transcript\.md#(S\d+)\)', r'\1 (turn \2)', content)
+            error = ('\n\n' + html.escape(value['error'])) if value.get('error') else ''
+            return (f"**Meeting {value['id']} · revision {revision} · {state}**\n\n" + details + '\n\n' + content + error
+                    + f"\n\nReview with `feedback {value['id']} {revision}` followed by your corrections on a new line. "
+                    + f"When satisfied, send exactly `approve {value['id']} {revision}`.\n\n"
+                    + f"Inspect voices with `transcript {value['id']}`. No draft is automatically approved.")
+        command = None
+        data = None
+        jid_pattern = r'([a-f0-9]{32})'
+        read = re.fullmatch(r'(review|transcript|changes)\s+' + jid_pattern, text, re.I)
+        approval = re.fullmatch(r'approve\s+' + jid_pattern + r'\s+r?(\d+)', text, re.I)
+        retry = re.fullmatch(r'retry\s+' + jid_pattern + r'\s+r?(\d+)', text, re.I)
+        edit = re.fullmatch(r'(feedback|replace|speakers|participants|title)\s+' + jid_pattern + r'\s+r?(\d+)\s*\n([\s\S]+)', text, re.I)
+        correction = re.fullmatch(r'(correct)\s+' + jid_pattern + r'\s+r?(\d+)\s+(S\d{6})\s*\n([\s\S]+)', text, re.I)
+        voice = re.fullmatch(r'speaker\s+' + jid_pattern + r'\s+r?(\d+)\s+(S\d{6})\s*=\s*(.+)', text, re.I)
+        date = re.fullmatch(r'date\s+' + jid_pattern + r'\s+r?(\d+)\s+(\d{4}-\d{2}-\d{2})', text, re.I)
+        if read:
+            command, review_id = read[1].lower(), read[2].lower()
+        elif approval:
+            command, review_id = 'approve', approval[1].lower()
+            data = {'action': 'approve', 'revision': int(approval[2])}
+        elif retry:
+            command, review_id = 'retry', retry[1].lower()
+            data = {'action':'retry', 'revision':int(retry[2])}
+        elif edit:
+            command, review_id = edit[1].lower(), edit[2].lower()
+            data = {'action': command, 'revision': int(edit[3]),
+                    'request_key': str(__chat_id__) + ':' + str(__message_id__)}
+            if command in ('participants','title'):
+                data['action'] = 'metadata'
+                if command=='title':
+                    data['meeting_title'] = edit[4].strip()
+                else:
+                    data['participants'] = [name.strip() for name in edit[4].replace('\n', ',').split(',') if name.strip()]
+            elif command == 'speakers':
+                mapping = {}
+                for line in edit[4].splitlines():
+                    pair = re.fullmatch(r'\s*(SPEAKER_\d{2,4})\s*=\s*(.+?)\s*', line)
+                    if not pair:
+                        return help_text()
+                    mapping[pair[1]] = pair[2]
+                data['mapping'] = mapping
+            else:
+                data['feedback' if command=='feedback' else 'content'] = edit[4]
+        elif correction:
+            command, review_id = 'correct', correction[2].lower()
+            data = {'action': command, 'revision': int(correction[3]), 'segment': correction[4].upper(),
+                    'content': correction[5], 'request_key': str(__chat_id__)+':'+str(__message_id__)}
+        elif voice:
+            command, review_id = 'speaker', voice[1].lower()
+            data = {'action': command, 'revision': int(voice[2]), 'segment': voice[3].upper(),
+                    'content': voice[4], 'request_key': str(__chat_id__)+':'+str(__message_id__)}
+        elif date:
+            command, review_id = 'metadata', date[1].lower()
+            data = {'action': 'metadata', 'revision': int(date[2]), 'meeting_date': date[3]}
+        elif re.match(r'^(review|transcript|changes|approve|feedback|replace|speakers|speaker|correct|date|retry|participants|title)\b', text, re.I):
+            return help_text()
+        if command:
+            if data and data['action'] in ('feedback','speakers','speaker','correct') and (not __chat_id__ or not __message_id__):
+                return 'Use a saved Open WebUI chat so your feedback has a stable request ID.'
+            async with httpx.AsyncClient(timeout=30, trust_env=False) as review_client:
+                try:
+                    endpoint = self.valves.WORKER_URL.rstrip('/') + '/v1/sessions/' + review_id + '/review'
+                    response = (await review_client.post(endpoint, headers=headers, json=data)) if data else (await review_client.get(endpoint, headers=headers))
+                    if response.status_code in (400, 401, 404, 409):
+                        return 'Review request not applied: ' + html.escape(str(response.json().get('error','Unavailable')))
+                    response.raise_for_status()
+                    value = response.json()
+                    if data:
+                        return value.get('message', 'Saved') + f"\n\nSend `review {review_id}` to inspect the current draft."
+                    if command == 'transcript':
+                        return value['transcript'] + f"\n\nRevision {value['revision']}. " + help_text()
+                    if command == 'changes':
+                        return '```diff\n' + value.get('changes','') + '\n```'
+                    return reviewed_text(value)
+                except Exception:
+                    return 'Review connection interrupted. The server may already have saved your request. Send `review ' + review_id + '` before retrying.'
         match = re.fullmatch(r"\s*status\s+([a-f0-9]{32})\s*", last_user(), re.I)
         jid = match[1].lower() if match else None
         async with httpx.AsyncClient(timeout=30, trust_env=False) as client:
@@ -100,7 +195,9 @@ class Pipe:
                             "", job["report"], flags=re.S)
                         text = re.sub(r"\s*\[↗\]\(#note-\d+\)", "", text)
                         text = re.sub(r"\[([^\]]+)\]\(transcript\.md(?:#[^)]+)?\)", r"\1", text)
-                        return text.strip()
+                        if 'revision' in job:
+                            return reviewed_text(job)
+                        return text.strip() + f"\n\nJob: `{jid}`. Send `review {jid}` to review before approval."
                     if job["state"] == "failed":
                         await status("Processing failed; recording retained", True)
                         return "Meeting processing failed. Source and partial results remain on the server.\n\n" + html.escape(job.get("error") or "Inspect the worker log.") + "\n\nJob: `" + jid + "`"

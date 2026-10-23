@@ -108,7 +108,7 @@ def slug(value):
     return re.sub(r'[^a-z0-9]+', '-', value).strip('-')[:60] or 'meeting'
 
 
-def document(folder, root, include_legacy=False):
+def document(folder, root, include_legacy=False, approved_revision=None):
     folder, root = Path(folder), Path(root).resolve()
     if folder.is_symlink() or folder.resolve().parent != root:
         raise IngestionError('Meeting folder must be a direct, non-symlink child of archive root')
@@ -121,15 +121,46 @@ def document(folder, root, include_legacy=False):
             return None
     elif not include_legacy:
         return None
-    path = folder / 'knowledge.md'
-    if not path.is_file():
+    # Approval is mandatory, including legacy archives. include_legacy never bypasses review.
+    state_path = folder/'review.json'
+    if not state_path.is_file():
         return None
+    if state_path.is_symlink():
+        raise IngestionError('Symlink review state refused')
+    review_state = read_json(state_path)
+    if review_state.get('schema') != 'meeting-review/1':
+        raise IngestionError('Invalid review state schema')
+    approval = review_state.get('last_approved')
+    if approved_revision is not None:
+        if type(approved_revision) is not int or approved_revision < 1:
+            raise IngestionError('Invalid pending approval revision')
+        approval_path = folder/'review'/f'r{approved_revision:06d}'/'approval.json'
+        if not approval_path.is_file() or approval_path.is_symlink():
+            raise IngestionError('Pending work does not have an approved immutable revision')
+        approval = read_json(approval_path)
+    if not approval:
+        return None
+    revision = approval.get('revision')
+    if type(revision) is not int or revision < 1 or approval.get('owner') != review_state.get('owner'):
+        raise IngestionError('Invalid approval identity')
+    directory = folder/'review'/f'r{revision:06d}'
+    path = directory/'knowledge.md'
+    metadata_path = directory/'meeting_metadata.json'
+    approval_path = directory/'approval.json'
+    for item in (folder/'review', directory, path, metadata_path, approval_path):
+        if item.is_symlink():
+            raise IngestionError('Symlink approved source refused')
+    if approval.get('path') != f'review/r{revision:06d}/knowledge.md' or read_json(approval_path) != approval:
+        raise IngestionError('Approval record does not match the immutable snapshot')
     if not 0 < path.stat().st_size <= MAX_FILE_BYTES:
-        raise IngestionError(f'knowledge.md must be between 1 byte and {MAX_FILE_BYTES} bytes')
-    raw = normalized_bytes(path.read_bytes())
+        raise IngestionError('Approved knowledge exceeds the size limit')
+    original = path.read_bytes()
+    if digest(original) != approval.get('knowledge_sha256') or digest(metadata_path.read_bytes()) != approval.get('metadata_sha256'):
+        raise IngestionError('Approved snapshot changed; indexing refused')
+    raw = normalized_bytes(original)
     if not raw.strip() or b'\x00' in raw:
-        raise IngestionError('knowledge.md is empty or contains null bytes')
-    metadata = read_json(folder / 'meeting_metadata.json') if (folder / 'meeting_metadata.json').is_file() else {}
+        raise IngestionError('Approved knowledge is empty or contains null bytes')
+    metadata = read_json(metadata_path)
     title = metadata.get('meeting_title')
     title = title.strip() if isinstance(title, str) and title.strip() else 'untitled-meeting'
     date = metadata.get('meeting_date')
@@ -148,7 +179,7 @@ def document(folder, root, include_legacy=False):
     sha = digest(raw)
     filename = f'{date}__{slug(title)}__{identity}__{sha[:12]}.md'
     return {'key': folder.name, 'sha256': sha, 'filename': filename, 'identity': identity,
-            'source': str(path), 'raw': raw}
+            'source': str(path), 'raw': raw, 'approval_revision': revision, 'approval_sha256': approval['knowledge_sha256']}
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -292,6 +323,14 @@ class State:
 
 def worker_busy(root):
     path = Path(root) / 'jobs.sqlite3'
+    review_db = Path(root)/'reviews.sqlite3'
+    if review_db.exists():
+        try:
+            with closing(sqlite3.connect(review_db.resolve().as_uri()+'?mode=ro', uri=True, timeout=5)) as review_connection:
+                if review_connection.execute("SELECT COUNT(*) FROM tasks WHERE status IN ('queued','running')").fetchone()[0]:
+                    return True
+        except sqlite3.Error:
+            raise IngestionError('Could not read review queue; deferring ingestion') from None
     if not path.exists():
         return False
     try:
@@ -325,7 +364,11 @@ def sync(client, config, state, apply=False, include_legacy=False, limit=None, b
         if not folder.is_dir():
             continue
         try:
-            doc = document(folder, root, include_legacy)
+            pending_snapshot = state.data['meetings'].get(folder.name, {}).get('pending')
+            if pending_snapshot and not pending_snapshot.get('approval_revision'):
+                raise IngestionError('Pre-review pending upload is unapproved; reconcile it before resuming ingestion')
+            doc = document(folder, root, include_legacy,
+                           approved_revision=pending_snapshot.get('approval_revision') if pending_snapshot else None)
             if doc is None:
                 report['skipped'] += 1
                 continue
@@ -380,7 +423,7 @@ def sync(client, config, state, apply=False, include_legacy=False, limit=None, b
                 # Adoption reuses exact source bytes, including the manual test upload.
                 # Keep its original remote name to avoid changing someone else's file metadata.
                 was_adopted = pending.get('adopted', False) if pending else True
-                pending = {k: doc[k] for k in ('sha256', 'filename', 'source')}
+                pending = {k: doc[k] for k in ('sha256', 'filename', 'source', 'approval_revision', 'approval_sha256')}
                 pending.update(file_id=new_id, adopted=was_adopted)
                 entry['pending'] = pending
                 state.data['meetings'][key] = entry
@@ -389,7 +432,7 @@ def sync(client, config, state, apply=False, include_legacy=False, limit=None, b
             else:
                 if not pending:
                     # Save an intent BEFORE upload. Deterministic name supports interrupted-upload recovery.
-                    pending = {k: doc[k] for k in ('sha256', 'filename', 'source')}
+                    pending = {k: doc[k] for k in ('sha256', 'filename', 'source', 'approval_revision', 'approval_sha256')}
                     pending.update(file_id=None, adopted=False)
                     entry['pending'] = pending
                     state.data['meetings'][key] = entry
@@ -560,7 +603,7 @@ def main():
     back.add_argument('--apply', action='store_true')
     scan = commands.add_parser('sync', help='Default dry run; --apply writes to Open WebUI')
     scan.add_argument('--apply', action='store_true')
-    scan.add_argument('--include-legacy', action='store_true', help='Include knowledge.md without a completed job.json')
+    scan.add_argument('--include-legacy', action='store_true', help='Include approved legacy snapshots without a job.json; approval still required')
     scan.add_argument('--limit', type=int, help='Limit changed/adopted meetings per run')
     args = parser.parse_args()
     os.umask(0o077)

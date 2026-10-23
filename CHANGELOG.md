@@ -1,3 +1,14 @@
+## 2026-10-23 — review workflow and move checkpoint (development)
+
+- Preserve current worker, word-level CPU speaker alignment, review revisions,
+  explicit approval, approval-only ingestion and indexed-revision replacement.
+- Include existing-bot completion notification binding and current Open WebUI Pipe.
+- Preserve reporter 2.6.3 with known quality limitations; freeze further tuning.
+- Add current regression suite, repository/runtime mapping, closure checklist and
+  private move-checkpoint helper plus shutdown/restart runbook.
+- Meeting dashboard and live review/nightly acceptance remain open. Legacy test
+  fixture/API failures are recorded explicitly; this is not a production release.
+
 # SMARTINI’s naming and identity — 22 October 2026
 
 - Adopt SMARTINI’s: Smart Memo Artificial Recording Transcription Initiative Notes Intelligence software.

@@ -21,13 +21,33 @@ A reference implementation that connects **Open WebUI to a Python backend** for 
 
 The project implements the integration and reporting workflow. It is **not an Ollama installer, an Open WebUI distribution or an AMD-specific inference engine**. You bring a running Open WebUI installation and a local Ollama model; the guides link to their official setup documentation.
 
+## Current checkpoint — 23 October 2026
+
+The repository now includes the existing MINISFORUM review/approval workflow,
+CPU diarization helper and the current reporter (2.6.3). Recap tuning is paused
+at the owner's request; current quality is acceptable for workflow testing but
+known factuality/coverage issues remain. This is a development checkpoint, not
+a fully accepted MVP release.
+
+Start with [MVP closure and open points](docs/MVP-CLOSURE.md),
+[move/shutdown/restart procedure](docs/MOVE-RUNBOOK.md), and
+[review commands](docs/COMMANDS-REVIEW.md). Runtime locations are preserved;
+root source files still deploy to the existing meeting-worker-2.3 directory.
+The meeting dashboard is planned. The existing monitoring dashboard is only
+an ingestion-run dashboard.
+
+Run `python tools/check_review.py` for the current workflow suite. Run
+`python tools/check_all.py` for every suite; legacy fixture/API compatibility
+failures are recorded in [checkpoint validation](docs/CHECKPOINT-VALIDATION.md)
+and must not be mistaken for a passing full-repository test run.
+
 ## Features
 
 - In-chat audio upload and operation-specific progress.
 - Durable SQLite jobs, serialized transcription/reporting and saved audit files.
 - faster-whisper transcription: automatic language detection or a selected language, with optional mixed-language detection.
 - **Language choices in Open WebUI:** spoken language, mixed-language mode and recap language are per-user settings captured for each new request.
-- Bounded evidence extraction and prose writing for long recordings with a default 4096-token model context.
+- Bounded evidence extraction and prose writing for long recordings with a default 16384-token model context.
 - Readable recap with topics, supported decisions, actions, open questions/risks and cautious observations about communication.
 - Source IDs/timestamps, grounded owner/deadline handling and resumable writing failures.
 - Recap-only chat output; complete transcript and evidence remain in the archive.
@@ -77,7 +97,7 @@ The Pipe polls jobs; the durable worker owns processing. Closing a chat after up
 
 ## Model choice
 
-The reporting engine uses Ollama's local chat API rather than a Qwen-specific SDK. `REPORT_MODEL` selects the installed model. `qwen3.5:9b` is the tested example and fallback default, not a mandatory model or guarantee that every alternative meets the same quality/latency targets. A replacement must handle the supplied JSON schema, requested languages and 4096-token context. Whisper's multilingual model handles recognition independently of the recap model.
+The reporting engine uses Ollama's local chat API rather than a Qwen-specific SDK. `REPORT_MODEL` selects the installed model. `qwen3.5:9b` is the tested example and fallback default, not a mandatory model or guarantee that every alternative meets the same quality/latency targets. A replacement must handle the supplied JSON schema, requested languages and the configured context (16384 tokens by default). Whisper's multilingual model handles recognition independently of the recap model.
 
 ## Language settings
 
@@ -103,4 +123,4 @@ python tools/check_all.py
 
 The original PoC was user-tested end to end on an AMD MINISFORUM with 32 GB RAM. The merged portable worker/language settings have offline coverage but still need fresh installation and browser verification. Metadata/export and retrieval were user-validated on the existing PoC; automatic nightly discovery and monitoring delivery still await live acceptance. Do not infer that every language, model, GPU or Linux distribution has been benchmarked.
 
-Initial model downloads require network access; inference uses the local services. Archives are not backups. There is no verified diarization, speaker identity, automatic action-completion tracking or an independently supplied vector database. Optional ingestion uses Open WebUI's existing embedding/vector backend; the tested API version is 0.12.3. Evidence validation is not proof that every model interpretation is correct.
+Initial model downloads require network access; inference uses the local services. Archives are not backups. Optional CPU diarization produces anonymous voice clusters; it does not establish speaker identity. Automatic action-completion tracking and an independently supplied vector database are not implemented. Optional ingestion uses Open WebUI's existing embedding/vector backend; the tested API version is 0.12.3. Evidence validation is not proof that every model interpretation is correct.
